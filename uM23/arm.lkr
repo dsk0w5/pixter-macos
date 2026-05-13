@@ -1,0 +1,48 @@
+
+MEMORY
+{
+	rom : ORIGIN = 0x80600000, LENGTH = 0x3f00
+	ram : ORIGIN = 0x40000200, LENGTH = 0x2e0	/* for now use internal ram */
+}
+
+SECTIONS
+{
+	. = 0x00000000;
+	.vectors : {
+		*(.vectors)
+	}  > rom
+	.text : {
+		*(.text)
+		*(.text.*)
+		. = ALIGN(4);
+	}  > rom
+	.rodata : {
+		*(.rodata)
+		*(.rodata.*)
+		. = ALIGN(4) ;
+		__data_data = ABSOLUTE(.) ;
+	}  > rom
+
+	.data : AT ( ADDR ( .rodata ) + SIZEOF ( .rodata )) {
+		__data_start = ADDR ( .data ) + . ;
+		*(.data)
+		*(.data.*)
+		. = ALIGN(4) ;
+		__data_end = ADDR ( .data ) + . ;
+	} > ram
+	.bss  :  {
+		__bss_start  = ABSOLUTE(.) ;
+		*(.bss)
+		*(.bss.*)
+		*(COMMON)
+		. = ALIGN(4) ;
+		__bss_end  = ABSOLUTE(.) ;
+	} > ram
+}
+
+__stack_top = ORIGIN(ram) + LENGTH(ram);
+
+
+ENTRY(__VECTORS)
+
+

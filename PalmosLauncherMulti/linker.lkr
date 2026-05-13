@@ -1,0 +1,140 @@
+
+MEMORY
+{
+	romCode		: ORIGIN = 0x00008000, LENGTH = 0xffc	/* max 0xffc, we cannot overwrite 0x60003ffc as that has the mmu table for rom periphs */
+	romHdr		: ORIGIN = 0x00009000, LENGTH = 0x3000
+	ram			: ORIGIN = 0x60003000, LENGTH = 0x1000
+	trash		: ORIGIN = 0xffff0000, LENGTH = 64K
+}
+
+SECTIONS
+{
+	.data : AT ( 0x8000 ) {
+		
+		
+		KEEP ( *(.text.vec) ) ;
+		KEEP ( *(.text.vec*) ) ;
+		*(.text.vec) *(.text.vec.*) ;
+
+		*(.text) ; *(.text.*) ;
+		*(.bss) ; *(.bss.*) ;
+		*(.rodata) ; *(.rodata.*) ;
+
+	}  > ram
+
+	.text : {
+
+/* big image data (lz compressed) */
+		. = 0x9000 - 0x9000 ;
+		KEEP ( *(.bigimage) ) ;
+		KEEP ( *(.bigimage*) ) ;
+		*(.bigimage) *(.bigimage.*) ;
+
+/* image data (incl size header */
+		. = 0xbbd0 - 0x9000 ;
+		KEEP ( *(.image) ) ;
+		KEEP ( *(.image*) ) ;
+		*(.image) *(.image.*) ;
+
+/* header */
+		. = 0xbf00 - 0x9000 ;
+		BYTE (0xAA) ;
+		BYTE (0x55) ;
+		
+		. = 0xbf04 - 0x9000 ;
+		BYTE (0x48) ;
+		BYTE (0xBF) ;
+
+		. = 0xbf06 - 0x9000 ;
+		BYTE (0x18) ;
+		BYTE (0xBF) ;
+
+		. = 0xbf0A - 0x9000 ;
+		BYTE (0x58) ;
+		BYTE (0xBF) ;
+
+		. = 0xbf0c - 0x9000 ;
+		BYTE (0x4c) ; /* native callout */
+		BYTE (0x30) ; 
+		BYTE (0xbf) ; /* at 0xbf30 */
+
+		. = 0xbf0f - 0x9000 ;
+		BYTE (0x01) ; /* classic uses this. 0 and 1 seem valid */ 
+		BYTE (0xFF) ; /* classic needs to see this */
+		BYTE (0xAA) ; /* pixter color will crash due to a ROM bug unless we do this or pretend to be a known game */
+
+/* VM code */
+		. = 0xbf18 - 0x9000 ;
+		BYTE (0x00) ;	/* PUSHIMM 0 -> param unused */
+		BYTE (0xE0) ;	/* PUSHIMM 0xC8 -> loads code to RAM on ARM */
+		BYTE (0xC8) ;
+		BYTE (0x96) ;	/* native call (leaves a value on stack) */
+
+		BYTE (0xE0) ;	/* PUSHIMM 0xD8 -> jumps to code in RAM on ARM */
+		BYTE (0xD8) ;
+		BYTE (0x96) ;	/* native call (consumes previous value on stack, leaves a value on stack) */
+
+		BYTE (0xF1) ;	/* bnez low_power_loop (skip draw if return value was nonzero ) */
+		BYTE (0x2A) ;
+		BYTE (0xBF) ;
+
+		BYTE (0x02) ;	/* PUSHIMM 2 */
+		BYTE (0xA6) ;	/* SET_SCENE */
+
+		BYTE (0x00) ;	/* PUSHIMM 2 -> image index in scene */
+		BYTE (0x00) ;	/* PUSHIMM 0 -> col */
+		BYTE (0x00) ;	/* PUSHIMM 0 -> row */
+		BYTE (0x01) ;	/* PUSHIMM 1 -> draw to framebuffer */
+		BYTE (0x04) ;	/* PUSHIMM 4 -> draw mode = draw all pixels */
+		BYTE (0xA8) ;	/* DRAW_IMAGE */
+
+/* low_power_loop */
+		BYTE (0x61) ;	/* IDLE_CHECK */
+		BYTE (0xF0) ;	/* BRA low_power_loop */
+		BYTE (0x2A) ;
+		BYTE (0xBF) ;
+
+/* native callout entry on classic series */
+		. = 0xbf30 - 0x9000 ;	/* we need to return 0, which goes into $60 */
+		BYTE (0xA9) ;	/* LDA #$00 */
+		BYTE (0x00) ;
+		BYTE (0x85) ;	/* STA $60 */
+		BYTE (0x60) ;
+		BYTE (0x60) ;	/* RTS */
+
+/* native callout pointer for arm series */
+		. = 0xbf40 - 0x9000 ;
+		BYTE (0x00)		/* copy from address 0x8000 */
+		BYTE (0x80)
+		BYTE (0xC0)		/* copy from flash page 0xc0 */
+		BYTE (0xFC)
+		BYTE (0x8F)		/* copy to addr 0x8FFC -> 0xFFC bytes, the most we can do due to SRAM size, and that we cannot overwrite 0x60003ffc as that has the mmu table for rom periphs */
+
+/* various structures: scene list */
+		. = 0xbf48 - 0x9000 ;
+		BYTE (0x01) ;	/* there is one scene */
+		BYTE (0x00) ;
+
+		BYTE (0x50) ;	/* and its descriptor is at 0xBF50 */
+		BYTE (0xBF) ;
+
+/* various structures: image list for scene 2 */
+		. = 0xbf50 - 0x9000 ;
+		BYTE (0x00) ;	/* one image and it is zero bytes from the global image list start */
+		BYTE (0x00) ;
+
+/* various structures: global image list */
+		. = 0xbf58 - 0x9000 ;
+		BYTE (0xD0) ;	/* image data at 0xBBD0 */
+		BYTE (0xBB) ;
+		BYTE (0x01) ;	/* in flash bank 1 which is really bank 0 which is here */
+
+	}  > romHdr
+	
+	.trash1 : { *(.ARM.exidx) *(.ARM.exidx.*) ; }  > trash
+	.trash2 : { *(.init) *(.init.*) ; *(.fini) *(.fini.*) ; }  > trash
+}
+
+
+
+ENTRY(start)

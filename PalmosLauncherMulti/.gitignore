@@ -1,0 +1,8 @@
+pixterTest.bin
+*.elf
+*.o
+*.bak
+*.pci
+decompressTest
+compress
+*.inc

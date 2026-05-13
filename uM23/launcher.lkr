@@ -1,0 +1,10 @@
+MEMORY {
+
+	HEADER:		start = $bf00, size = $0100, file = %O;
+}
+
+SEGMENTS {
+
+	HEADER:		load = HEADER,			type = ro;
+}
+
