@@ -5,3 +5,4 @@ rom.img
 *.elfa
 *.oa
 *.bina
+rom.emu.pci

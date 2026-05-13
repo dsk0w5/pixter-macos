@@ -6,7 +6,7 @@ ALLFLAGS	+= -Os -Wall -Wextra -Werror -marm -march=armv4t -I. -mfloat-abi=soft
 ALLFLAGS	+= -ffunction-sections -fdata-sections -fomit-frame-pointer -Wno-unused-function -Wno-unused-parameter
 ALLFLAGS	+= -DCPU_CLOCK_RATE=63000000 -flto -nostdlib
 
-CCFLAGS	+= $(ALLFLAGS)
+CCFLAGS	+= $(ALLFLAGS) -Wno-calloc-transposed-args
 LDFLAGS += $(ALLFLAGS) -Wl,--gc-sections -Wl,-T $(LKR) -lm
 CC		= arm-none-eabi-gcc
 SOURCES += crt.S image.c main.c printf.c bbBus.c lz.c

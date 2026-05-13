@@ -2,8 +2,17 @@ APP			= uPixter
 
 OPT			= -O0 -g -ggdb3
 #OPT			= -Ofast
+
 CC_FLAGS	=  -Wall -Wextra $(OPT) $(OPTS) -ffunction-sections -Wno-unused-variable -Wno-unused-function
-LD_FLAGS	=  -Wall -Wextra $(OPT) -Wl,--gc-sections -lSDL2
+
+UNAME_S := $(shell uname -s)
+
+ifeq ($(UNAME_S),Darwin)
+    LD_FLAGS        =  -Wall -Wextra $(OPT) -Wl,-dead_strip -lSDL2
+else
+    LD_FLAGS        =  -Wall -Wextra $(OPT) -Wl,--gc-sections -lSDL2
+endif
+
 CC			= gcc
 LD			= gcc
 
