@@ -8,7 +8,7 @@
 #include <fcntl.h>
 #include <time.h>
 #include "SDL2/SDL.h"
-#include "almostSst39sf010a.h"
+#include "almostSST39SF010A.h"
 #include "SDL2/SDL_audio.h"
 #include "gpioMasterI2C.h"
 #include "i2cdev_24C02.h"
