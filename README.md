@@ -4,15 +4,20 @@ TLDR (from [original website](https://dmitry.gr/?r=05.Projects&proj=37.%20Pixter
 
 This version has been edited to support compilation on macOS. Not all aspects have been fully tested. Changes should be non-breaking on Linux.
 
-## Compilation Instructions:
+## Compiling all:
+Install all dependencies: `brew install arm-none-eabi-binutils cc65` and `brew install --cask gcc-arm-embedded` first, otherwise uARMpixter/uPixter and uM23 will fail to build.
 
-### Compiling uARMpixter/uPixter:
+Run `make all` in the root directory - the Makefile there will go through each directory and `make` each tool.
+
+## Compiling individually:
+
+#### Compiling uARMpixter/uPixter:
 Install gcc-arm-embedded and arm-none-eabi-binutils: `brew install --cask gcc-arm-embedded` and `brew install arm-none-eabi-binutils`, `make` in given directory.
 
-### Compiling uM23:
+#### Compiling uM23:
 Install cc65: `brew install cc65` and run `make` in the uM23 directory.
 
-### Compiling ClassicDisasm/ColorDisasm/PalmosLauncherMulti:
+#### Compiling ClassicDisasm/ColorDisasm/PalmosLauncherMulti:
 `make` in given directory.
 
 ## License:
