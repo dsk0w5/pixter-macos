@@ -22,3 +22,9 @@ Install cc65: `brew install cc65` and run `make` in the uM23 directory.
 
 ## License:
 All code within this repository is GPLv3-licensed. The original source code can be found [here](https://dmitry.gr/images/pixter_Downloadables.tar.bz2). This repository does not distribute any ROMs or any code that is not licensed for public distribution.
+
+## Regression tests:
+
+Run `./tests/run.sh` with a C compiler, SDL2 development files, and `pkg-config`
+installed. The tests use synthetic audio and do not require ROMs or open audio
+devices. `CC`, `CFLAGS`, `SDL_CFLAGS`, and `SDL_LIBS` can override build settings.

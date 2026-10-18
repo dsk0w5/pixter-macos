@@ -147,44 +147,53 @@ bool melodyChipIsPlaying(struct MelodyChip *mc)
 //play up to MAX_MELODIES_AT_ONCE melodies mixed together. Longest duration is the duration of playback. Return true if anything started playing
 static bool melodyChipPrvPlayMelodies(struct MelodyChip *mc, const uint32_t melodyID[static MAX_MELODIES_AT_ONCE])
 {
-	int16_t *samples, volScale = 16 * (mc->lastVolume + 1);
-	uint32_t i, j, maxLen = 0, nMelodies = 0;
+	const int8_t *voices[MAX_MELODIES_AT_ONCE];
+	uint32_t lengths[MAX_MELODIES_AT_ONCE];
+	uint32_t maxLen = 0, nMelodies = 0;
+	int32_t volScale = 16 * (mc->lastVolume + 1);
+	int16_t *samples;
 
 	if (DEBUG)
-		fprintf(stderr, "MELODYCHIP: play %u(%xh) %u(%xh) %u(%xh) %u(%xh)\n", melodyID[0], melodyID[0], melodyID[1], melodyID[1], melodyID[2], melodyID[2], melodyID[3], melodyID[3]);
+		fprintf(stderr, "MELODYCHIP: play %u(%xh) %u(%xh) %u(%xh) %u(%xh)\n",
+				melodyID[0], melodyID[0], melodyID[1], melodyID[1],
+				melodyID[2], melodyID[2], melodyID[3], melodyID[3]);
 
-	//calc length
-	for (i = 0; i < MAX_MELODIES_AT_ONCE; i++) {
-		if (melodyID[i] >= mc->rom->numMelodyIndices || !mc->rom->melodies[melodyID[i]] || !mc->rom->melodies[melodyID[i]]->length)
+	for (uint32_t i = 0; i < MAX_MELODIES_AT_ONCE; i++) {
+		if (melodyID[i] >= mc->rom->numMelodyIndices || !mc->rom->melodies[melodyID[i]] ||
+			!mc->rom->melodies[melodyID[i]]->length)
 			continue;
-
+		voices[nMelodies] = (const int8_t *)mc->rom->melodies[melodyID[i]]->data;
+		lengths[nMelodies] = mc->rom->melodies[melodyID[i]]->length;
+		if (lengths[nMelodies] > maxLen)
+			maxLen = lengths[nMelodies];
 		nMelodies++;
-		if (mc->rom->melodies[melodyID[i]]->length > maxLen)
-			maxLen = mc->rom->melodies[melodyID[i]]->length;
 	}
-	
 	if (!nMelodies)
 		return false;
 
-	//mix
-	samples = calloc(sizeof(*samples), maxLen);
-	for (j = 0; j < MAX_MELODIES_AT_ONCE; j++) {
-
-		if (melodyID[j] >= mc->rom->numMelodyIndices || !mc->rom->melodies[melodyID[j]])
-			continue;
-		for (i = 0; i < mc->rom->melodies[melodyID[j]]->length; i++)
-			samples[i] += volScale * (int8_t)mc->rom->melodies[melodyID[j]]->data[i];
+	samples = malloc((size_t)maxLen * sizeof(*samples));
+	if (!samples) {
+		fprintf(stderr, "MELODYCHIP: cannot allocate mixed audio\n");
+		return false;
 	}
-
-	//average (yes, this is unuusal, but melody chip acts thus)
-	for (i = 0; i < maxLen; i++)
-		samples[i] /= nMelodies;
-
-	//play and free
-	SDL_QueueAudio(mc->audioDev, samples, maxLen * sizeof(*samples));
+	for (uint32_t i = 0; i < maxLen; i++) {
+		int32_t mixed = 0;
+		for (uint32_t j = 0; j < nMelodies; j++)
+			if (i < lengths[j])
+				mixed += volScale * voices[j][i];
+		/* Keep both the accumulator and divisor signed. An unsigned divisor
+		* folded negative samples into large positive spikes with 3 voices.
+		* Mixing in 32 bits also prevents overflow before averaging 4 voices. */
+		mixed /= (int32_t)nMelodies;
+		if (mixed < INT16_MIN) mixed = INT16_MIN;
+		if (mixed > INT16_MAX) mixed = INT16_MAX;
+		samples[i] = (int16_t)mixed;
+	}
+	bool queued = !SDL_QueueAudio(mc->audioDev, samples, maxLen * sizeof(*samples));
+	if (!queued)
+		fprintf(stderr, "MELODYCHIP: audio queue error: %s\n", SDL_GetError());
 	free(samples);
-
-	return true;
+	return queued;
 }
 
 static void melodyChipPrvNormalControl(struct MelodyChip *mc, uint32_t cmd)
@@ -221,9 +230,8 @@ static void melodyChipPrvNormalControl(struct MelodyChip *mc, uint32_t cmd)
 
 static void melodyChipPrvAdvancedControl(struct MelodyChip *mc, uint32_t cmd)
 {
-	 if (cmd == ADVANCED_INSTR_GO_BASIC) {
-
-		SDL_ClearQueuedAudio(mc->audioDev);
+	SDL_ClearQueuedAudio(mc->audioDev);
+	if (cmd == ADVANCED_INSTR_GO_BASIC) {
 		mc->playState = PlaybackIdle;
 		mc->isInAdvancedMode = false;
 		if (DEBUG)
