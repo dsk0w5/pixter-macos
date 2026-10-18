@@ -26,5 +26,6 @@ All code within this repository is GPLv3-licensed. The original source code can 
 ## Regression tests:
 
 Run `./tests/run.sh` with a C compiler, SDL2 development files, and `pkg-config`
-installed. The tests use synthetic audio and do not require ROMs or open audio
-devices. `CC`, `CFLAGS`, `SDL_CFLAGS`, and `SDL_LIBS` can override build settings.
+installed. The tests use synthetic audio and SDL events, require no ROMs, and
+open no audio devices. Input tests use SDL's dummy video driver. `CC`, `CFLAGS`,
+`SDL_CFLAGS`, and `SDL_LIBS` can override build settings.

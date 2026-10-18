@@ -86,7 +86,7 @@ struct SoC {
 
 	struct AT29LV010A *classicCartSavegameNor;
 
-	bool mouseDown;
+	bool mouseDown, mouseReleasePending;
 
 	uint32_t crystalHz, pllHz, hclkHz, cpuHz;
 };
@@ -345,6 +345,66 @@ static bool prvTimeHasPassed(struct timespec *nextExpected, uint64_t nsTillNext)
 	return true;
 }
 
+static void socPrvPollEvents(struct SoC *soc)
+{
+	SDL_Event event;
+	bool pressedThisPoll = false;
+
+	if (soc->mouseReleasePending) {
+		soc->mouseDown = soc->mouseReleasePending = false;
+		deviceTouch(soc->dev, -1, -1);
+	}
+	while (SDL_PollEvent(&event)) switch (event.type) {
+
+		case SDL_QUIT:
+			exit(0);
+			break;
+
+		case SDL_MOUSEBUTTONDOWN:
+			if (event.button.button != SDL_BUTTON_LEFT)
+				break;
+			soc->mouseDown = true;
+			pressedThisPoll = true;
+			soc->mouseReleasePending = false;
+			deviceTouch(soc->dev, event.button.x, event.button.y);
+			break;
+
+		case SDL_MOUSEBUTTONUP:
+			if (event.button.button != SDL_BUTTON_LEFT)
+				break;
+			if (pressedThisPoll)
+				soc->mouseReleasePending = true;
+			else {
+				soc->mouseDown = false;
+				deviceTouch(soc->dev, -1, -1);
+			}
+			break;
+
+		case SDL_MOUSEMOTION:
+			if (!soc->mouseDown || soc->mouseReleasePending)
+				break;
+			deviceTouch(soc->dev, event.motion.x, event.motion.y);
+			break;
+
+		case SDL_WINDOWEVENT:
+			if (event.window.event == SDL_WINDOWEVENT_FOCUS_LOST) {
+				soc->mouseDown = soc->mouseReleasePending = false;
+				deviceTouch(soc->dev, -1, -1);
+			}
+			break;
+
+		case SDL_KEYDOWN:
+
+			deviceKey(soc->dev, event.key.keysym.sym, true);
+			break;
+
+		case SDL_KEYUP:
+
+			deviceKey(soc->dev, event.key.keysym.sym, false);
+			break;
+	}
+}
+
 static void socRun(struct SoC* soc)
 {
 	struct timespec nextDispUpdate, nextAdcTick, nextUartTick, nextMelodyChipTick, nextUiPollTick, nextTimersTick;
@@ -413,45 +473,11 @@ static void socRun(struct SoC* soc)
 			}
 		}
 
-		while (prvTimeHasPassed(&nextUiPollTick, 1e9 / 64)) {		//UI runs at 64Hz
-			SDL_Event event;
-			
-			if (SDL_PollEvent(&event)) switch (event.type) {
-				
-				case SDL_QUIT:
-					exit(0);
-					break;
-				
-				case SDL_MOUSEBUTTONDOWN:
-					if (event.button.button != SDL_BUTTON_LEFT)
-						break;
-					soc->mouseDown = true;
-					deviceTouch(soc->dev, event.button.x, event.button.y);
-					break;
-				
-				case SDL_MOUSEBUTTONUP:
-					if (event.button.button != SDL_BUTTON_LEFT)
-						break;
-					soc->mouseDown = false;
-					deviceTouch(soc->dev, -1, -1);
-					break;
-				
-				case SDL_MOUSEMOTION:
-					if (!soc->mouseDown)
-						break;
-					deviceTouch(soc->dev, event.motion.x, event.motion.y);
-					break;
-				
-				case SDL_KEYDOWN:
-				
-					deviceKey(soc->dev, event.key.keysym.sym, true);
-					break;
-				
-				case SDL_KEYUP:
-				
-					deviceKey(soc->dev, event.key.keysym.sym, false);
-					break;
-			}
+		if (prvTimeHasPassed(&nextUiPollTick, 1e9 / 64)) {		//UI runs at 64Hz
+			/* Coalesce overdue polls so a latched tap lasts until the next UI tick. */
+			while (prvTimeHasPassed(&nextUiPollTick, 1e9 / 64))
+				;
+			socPrvPollEvents(soc);
 		}
 
 		if (prvTimeHasPassed(&nextTimersTick, 1e9 * 2 * timerTicksPerTime / soc->hclkHz)) {		//timers run at HCLK / 2, but we iterate them timerTicksPerTime ticks at a time for speed

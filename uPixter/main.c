@@ -670,6 +670,8 @@ static void renderScreen(void)
 	const uint8_t *src = (mRAM + framebufferBase - sizeof(mIO) /* since addr is given as absolute and not relative to ram start */) - 1 /* to make our logic easier */;
 	static SDL_Surface *mScreen = NULL;
 	static SDL_Window *mWindow = NULL;
+	static bool releasePending;
+	bool pressedThisPoll = false;
 	uint32_t *dst, *dst2;
 	SDL_Event event;
 	uint32_t r, c, dispW = 16 * mIO[0x0e];
@@ -734,7 +736,12 @@ static void renderScreen(void)
 	SDL_UpdateWindowSurface(mWindow);
 
 
-	if (SDL_PollEvent(&event)) switch (event.type) {
+	/* Keep a complete queued tap visible for one emulated frame. */
+	if (releasePending) {
+		mPenX = mPenY = -1;
+		releasePending = false;
+	}
+	while (SDL_PollEvent(&event)) switch (event.type) {
 		
 		case SDL_QUIT:
 			if (mEepromFile)
@@ -751,23 +758,35 @@ static void renderScreen(void)
 				break;
 			mPenX = event.button.x / 2;
 			mPenY = event.button.y / 2;
+			pressedThisPoll = true;
+			releasePending = false;
 			break;
 		
 		case SDL_MOUSEBUTTONUP:
 			if (event.button.button != SDL_BUTTON_LEFT)
 				break;
-			mPenX = -1;
-			mPenY = -1;
+			if (pressedThisPoll)
+				releasePending = true;
+			else
+				mPenX = mPenY = -1;
 			break;
 		
 		case SDL_MOUSEMOTION:
-			if (mPenX >=0 && mPenY >= 0) {	//motion is only a drag if pen is already down
+			if (mPenX >=0 && mPenY >= 0 && !releasePending) {	//motion is only a drag if pen is already down
 				
 				mPenX = event.motion.x / 2;
 				mPenY = event.motion.y / 2;
 			}
 			break;
 		
+		case SDL_WINDOWEVENT:
+			if (event.window.event == SDL_WINDOWEVENT_FOCUS_LOST) {
+				mPenX = mPenY = -1;
+				releasePending = false;
+				mCalibBtnPressed = false;
+			}
+			break;
+
 		case SDL_KEYDOWN:
 			if (event.key.keysym.sym == SDLK_RETURN)
 				mCalibBtnPressed = true;
